@@ -3,166 +3,158 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>OCR Scanner</title>
-  <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet"/>
+  <title>Smart OCR App</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
     body {
-      margin: 0;
       font-family: Arial, sans-serif;
-      background: #f9f9f9;
+      margin: 0;
+      background: #f0f0f0;
+      padding-bottom: 80px;
     }
     header {
       background: #4CAF50;
       color: white;
       padding: 1rem;
       text-align: center;
-      font-size: 1.5rem;
-      font-weight: bold;
+      font-size: 1.4rem;
     }
     .container {
-      padding: 1rem;
       max-width: 500px;
       margin: auto;
-      padding-bottom: 70px; /* for bottom nav */
+      padding: 1rem;
     }
-    video, img, canvas {
+    input, select, button, textarea {
       width: 100%;
-      display: none;
-      border-radius: 12px;
-      margin-top: 1rem;
-    }
-    button {
-      width: 100%;
-      padding: 0.8rem;
       margin-top: 10px;
+      padding: 10px;
+      border-radius: 8px;
       font-size: 1rem;
+    }
+    img {
+      width: 100%;
+      margin-top: 10px;
+      border-radius: 8px;
+      display: none;
+    }
+    textarea {
+      height: 150px;
+      resize: vertical;
+    }
+    .btn {
       background: #4CAF50;
       color: white;
       border: none;
-      border-radius: 8px;
+      cursor: pointer;
     }
-    button:disabled {
-      background: #999;
-    }
-    .output {
-      background: #fff;
-      padding: 1rem;
-      border-radius: 8px;
-      margin-top: 1rem;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      font-size: 1rem;
-      white-space: pre-wrap;
-    }
-
-    .nav {
+    .bottom-nav {
       position: fixed;
       bottom: 0;
       width: 100%;
-      background: #ffffff;
-      border-top: 1px solid #ccc;
       display: flex;
       justify-content: space-around;
-      padding: 0.5rem 0;
-      z-index: 10;
+      background: white;
+      padding: 10px 0;
+      border-top: 1px solid #ccc;
     }
-    .nav button {
+    .bottom-nav button {
       background: none;
-      color: #4CAF50;
       border: none;
-      font-size: 1.2rem;
+      font-size: 1.3rem;
+      color: #4CAF50;
     }
   </style>
 </head>
 <body>
 
-<header>📷 OCR Scanner</header>
+<header>📷 Smart OCR App</header>
 
 <div class="container">
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas"></canvas>
-  <img id="captured" />
-  <canvas id="croppedCanvas" style="display:none;"></canvas>
-
-  <button onclick="startCamera()">Start Camera</button>
-  <button onclick="capture()" id="captureBtn" disabled>📸 Capture</button>
-  <button onclick="cropImage()" id="cropBtn" disabled>✂️ Crop</button>
-  <button onclick="extractText()" id="extractBtn" disabled>🔍 Extract</button>
-  <button onclick="copyText()" id="copyBtn" disabled>📋 Copy Text</button>
-
-  <div id="output" class="output">📝 Extracted text will appear here...</div>
+  <input type="file" id="imageInput" accept="image/*" />
+  <select id="lang">
+    <option value="eng">English</option>
+    <option value="hin">Hindi</option>
+  </select>
+  <img id="imagePreview">
+  <button class="btn" onclick="cropImage()">✂️ Crop</button>
+  <button class="btn" onclick="extractText()">🔍 Extract Text</button>
+  <textarea id="output" placeholder="Extracted text will appear here..."></textarea>
+  <button class="btn" onclick="copyText()">📋 Copy</button>
+  <button class="btn" onclick="downloadText()">📥 Download</button>
+  <button class="btn" onclick="resetAll()">🔁 Reset</button>
 </div>
 
-<div class="nav">
-  <button onclick="startCamera()">📷</button>
-  <button onclick="capture()">📸</button>
-  <button onclick="cropImage()">✂️</button>
+<div class="bottom-nav">
+  <button onclick="document.getElementById('imageInput').click()">📤</button>
   <button onclick="extractText()">🔍</button>
   <button onclick="copyText()">📋</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/cropperjs"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
 <script>
-  const video = document.getElementById("video");
-  const canvas = document.getElementById("canvas");
-  const captured = document.getElementById("captured");
-  const croppedCanvas = document.getElementById("croppedCanvas");
-  const output = document.getElementById("output");
+  const imageInput = document.getElementById('imageInput');
+  const imagePreview = document.getElementById('imagePreview');
+  const output = document.getElementById('output');
+  const lang = document.getElementById('lang');
   let cropper;
 
-  function startCamera() {
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { exact: "environment" } }
-    }).then(stream => {
-      video.srcObject = stream;
-      video.style.display = "block";
-      document.getElementById("captureBtn").disabled = false;
-    }).catch(() => {
-      alert("Rear camera not available or permission denied.");
-    });
-  }
-
-  function capture() {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    const imgData = canvas.toDataURL("image/png");
-    captured.src = imgData;
-    captured.style.display = "block";
-    if (cropper) cropper.destroy();
-    cropper = new Cropper(captured, { viewMode: 1 });
-    document.getElementById("cropBtn").disabled = false;
-  }
+  imageInput.addEventListener('change', () => {
+    const file = imageInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      imagePreview.src = e.target.result;
+      imagePreview.style.display = 'block';
+      if (cropper) cropper.destroy();
+      cropper = new Cropper(imagePreview, { viewMode: 1 });
+    };
+    reader.readAsDataURL(file);
+  });
 
   function cropImage() {
-    if (!cropper) return;
+    if (!cropper) return alert("Upload and select image first.");
     const cropped = cropper.getCroppedCanvas();
-    croppedCanvas.width = cropped.width;
-    croppedCanvas.height = cropped.height;
-    croppedCanvas.getContext("2d").drawImage(cropped, 0, 0);
-    croppedCanvas.style.display = "block";
-    document.getElementById("extractBtn").disabled = false;
+    imagePreview.src = cropped.toDataURL();
+    cropper.destroy();
   }
 
   function extractText() {
-    output.textContent = "🔍 Scanning text...";
-    Tesseract.recognize(croppedCanvas, 'eng')
+    output.value = "⏳ Extracting text...";
+    Tesseract.recognize(imagePreview.src, lang.value)
       .then(result => {
-        output.textContent = result.data.text.trim() || "❌ No text found.";
-        document.getElementById("copyBtn").disabled = false;
-      }).catch(err => {
-        output.textContent = "❌ Error: " + err.message;
+        output.value = result.data.text.trim() || "❌ No text found.";
+      })
+      .catch(err => {
+        output.value = "❌ Error: " + err.message;
       });
   }
 
   function copyText() {
-    const text = output.textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      alert("✅ Text copied to clipboard!");
-    });
+    navigator.clipboard.writeText(output.value)
+      .then(() => alert("✅ Copied to clipboard!"));
+  }
+
+  function downloadText() {
+    const blob = new Blob([output.value], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "ocr-text.txt";
+    link.click();
+  }
+
+  function resetAll() {
+    output.value = "";
+    imagePreview.src = "#";
+    imagePreview.style.display = "none";
+    if (cropper) cropper.destroy();
+    imageInput.value = "";
+  }
+
+  // PWA install support
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
   }
 </script>
 
