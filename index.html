@@ -106,7 +106,7 @@
 
     <div id="output" class="output-box">📝 Extracted text will appear here...</div>
 
-    <footer>Built with ❤️ by ChatGPT</footer>
+    <footer>Built with ❤️ using Tesseract.js & Cropper.js</footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/cropperjs"></script>
@@ -119,9 +119,15 @@
     const output = document.getElementById("output");
     let cropper;
 
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => video.srcObject = stream)
-      .catch(err => alert("Camera access denied."));
+    // 🟢 Use rear camera
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: "environment" } }
+    })
+    .then(stream => video.srcObject = stream)
+    .catch(err => {
+      alert("Rear camera not available or permission denied.");
+      console.error(err);
+    });
 
     function capture() {
       canvas.width = video.videoWidth;
