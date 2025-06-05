@@ -3,152 +3,168 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Text Scanner</title>
+  <title>OCR Scanner</title>
   <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet"/>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background: #f0f2f5;
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
     }
-
-    .header {
-      background: #007bff;
-      color: #fff;
-      text-align: center;
+    header {
+      background: #4CAF50;
+      color: white;
       padding: 1rem;
-      font-size: 1.4rem;
+      text-align: center;
+      font-size: 1.5rem;
       font-weight: bold;
     }
-
     .container {
       padding: 1rem;
-      max-width: 480px;
+      max-width: 500px;
       margin: auto;
+      padding-bottom: 70px; /* for bottom nav */
     }
-
-    video, canvas, img {
+    video, img, canvas {
       width: 100%;
-      border-radius: 10px;
-      margin-top: 1rem;
       display: none;
+      border-radius: 12px;
+      margin-top: 1rem;
     }
-
     button {
       width: 100%;
-      padding: 0.9rem;
+      padding: 0.8rem;
+      margin-top: 10px;
       font-size: 1rem;
-      margin-top: 0.7rem;
+      background: #4CAF50;
+      color: white;
       border: none;
       border-radius: 8px;
-      background: #007bff;
-      color: white;
-      font-weight: bold;
     }
-
     button:disabled {
-      background: #ccc;
+      background: #999;
     }
-
     .output {
-      background: white;
+      background: #fff;
       padding: 1rem;
       border-radius: 8px;
       margin-top: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
       font-size: 1rem;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       white-space: pre-wrap;
+    }
+
+    .nav {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      background: #ffffff;
+      border-top: 1px solid #ccc;
+      display: flex;
+      justify-content: space-around;
+      padding: 0.5rem 0;
+      z-index: 10;
+    }
+    .nav button {
+      background: none;
+      color: #4CAF50;
+      border: none;
+      font-size: 1.2rem;
     }
   </style>
 </head>
 <body>
 
-  <div class="header">📷 Text Scanner</div>
+<header>📷 OCR Scanner</header>
 
-  <div class="container">
-    <video id="video" autoplay playsinline></video>
+<div class="container">
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas"></canvas>
+  <img id="captured" />
+  <canvas id="croppedCanvas" style="display:none;"></canvas>
 
-    <canvas id="canvas"></canvas>
-    <img id="captured" />
+  <button onclick="startCamera()">Start Camera</button>
+  <button onclick="capture()" id="captureBtn" disabled>📸 Capture</button>
+  <button onclick="cropImage()" id="cropBtn" disabled>✂️ Crop</button>
+  <button onclick="extractText()" id="extractBtn" disabled>🔍 Extract</button>
+  <button onclick="copyText()" id="copyBtn" disabled>📋 Copy Text</button>
 
-    <canvas id="croppedCanvas" style="display:none;"></canvas>
+  <div id="output" class="output">📝 Extracted text will appear here...</div>
+</div>
 
-    <button onclick="startCamera()">Start Camera</button>
-    <button onclick="capture()" id="captureBtn" disabled>📸 Capture Photo</button>
-    <button onclick="cropImage()" id="cropBtn" disabled>✂️ Crop</button>
-    <button onclick="extractText()" id="extractBtn" disabled>🔍 Extract Text</button>
-    <button onclick="copyText()" id="copyBtn" disabled>📋 Copy Text</button>
+<div class="nav">
+  <button onclick="startCamera()">📷</button>
+  <button onclick="capture()">📸</button>
+  <button onclick="cropImage()">✂️</button>
+  <button onclick="extractText()">🔍</button>
+  <button onclick="copyText()">📋</button>
+</div>
 
-    <div id="output" class="output">📝 Your scanned text will appear here...</div>
-  </div>
+<script src="https://cdn.jsdelivr.net/npm/cropperjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+<script>
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const captured = document.getElementById("captured");
+  const croppedCanvas = document.getElementById("croppedCanvas");
+  const output = document.getElementById("output");
+  let cropper;
 
-  <script src="https://cdn.jsdelivr.net/npm/cropperjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+  function startCamera() {
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: "environment" } }
+    }).then(stream => {
+      video.srcObject = stream;
+      video.style.display = "block";
+      document.getElementById("captureBtn").disabled = false;
+    }).catch(() => {
+      alert("Rear camera not available or permission denied.");
+    });
+  }
 
-  <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const captured = document.getElementById("captured");
-    const croppedCanvas = document.getElementById("croppedCanvas");
-    const output = document.getElementById("output");
-    let cropper;
+  function capture() {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    const imgData = canvas.toDataURL("image/png");
+    captured.src = imgData;
+    captured.style.display = "block";
+    if (cropper) cropper.destroy();
+    cropper = new Cropper(captured, { viewMode: 1 });
+    document.getElementById("cropBtn").disabled = false;
+  }
 
-    function startCamera() {
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: "environment" } }
-      }).then(stream => {
-        video.srcObject = stream;
-        video.style.display = "block";
-        document.getElementById("captureBtn").disabled = false;
+  function cropImage() {
+    if (!cropper) return;
+    const cropped = cropper.getCroppedCanvas();
+    croppedCanvas.width = cropped.width;
+    croppedCanvas.height = cropped.height;
+    croppedCanvas.getContext("2d").drawImage(cropped, 0, 0);
+    croppedCanvas.style.display = "block";
+    document.getElementById("extractBtn").disabled = false;
+  }
+
+  function extractText() {
+    output.textContent = "🔍 Scanning text...";
+    Tesseract.recognize(croppedCanvas, 'eng')
+      .then(result => {
+        output.textContent = result.data.text.trim() || "❌ No text found.";
+        document.getElementById("copyBtn").disabled = false;
       }).catch(err => {
-        alert("Rear camera not found or not allowed.");
-        console.error(err);
+        output.textContent = "❌ Error: " + err.message;
       });
-    }
+  }
 
-    function capture() {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0);
-      const imgData = canvas.toDataURL("image/png");
-      captured.src = imgData;
-      captured.style.display = "block";
-      if (cropper) cropper.destroy();
-      cropper = new Cropper(captured, { viewMode: 1 });
-      document.getElementById("cropBtn").disabled = false;
-    }
-
-    function cropImage() {
-      if (!cropper) return;
-      const cropped = cropper.getCroppedCanvas();
-      croppedCanvas.width = cropped.width;
-      croppedCanvas.height = cropped.height;
-      const ctx = croppedCanvas.getContext("2d");
-      ctx.drawImage(cropped, 0, 0);
-      croppedCanvas.style.display = "block";
-      document.getElementById("extractBtn").disabled = false;
-    }
-
-    function extractText() {
-      output.textContent = "🔍 Extracting text...";
-      Tesseract.recognize(croppedCanvas, 'eng')
-        .then(result => {
-          output.textContent = result.data.text.trim() || "❌ No text found.";
-          document.getElementById("copyBtn").disabled = false;
-        })
-        .catch(err => {
-          output.textContent = "❌ Error: " + err.message;
-        });
-    }
-
-    function copyText() {
-      const text = output.textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        alert("✅ Text copied to clipboard!");
-      });
-    }
-  </script>
+  function copyText() {
+    const text = output.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      alert("✅ Text copied to clipboard!");
+    });
+  }
+</script>
 
 </body>
 </html>
