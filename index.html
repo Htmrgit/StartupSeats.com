@@ -3,114 +3,88 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>OCR Camera App</title>
+  <title>Text Scanner</title>
   <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet"/>
   <style>
-    :root {
-      --primary: #2196F3;
-      --background: #f7f9fb;
-      --text-dark: #333;
-      --text-light: #777;
-      --card-bg: #fff;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
-      background-color: var(--background);
-      color: var(--text-dark);
+      background: #f0f2f5;
     }
 
-    .app {
-      max-width: 500px;
-      margin: 0 auto;
-      padding: 1rem;
-    }
-
-    header {
+    .header {
+      background: #007bff;
+      color: #fff;
       text-align: center;
-      padding: 1rem 0;
-      background-color: var(--primary);
-      color: white;
-      border-radius: 0 0 16px 16px;
+      padding: 1rem;
+      font-size: 1.4rem;
+      font-weight: bold;
     }
 
-    h2 {
-      margin: 0;
-      font-size: 1.5rem;
+    .container {
+      padding: 1rem;
+      max-width: 480px;
+      margin: auto;
     }
 
     video, canvas, img {
       width: 100%;
-      border-radius: 12px;
+      border-radius: 10px;
       margin-top: 1rem;
-      display: block;
+      display: none;
     }
 
-    .btn {
+    button {
       width: 100%;
-      background-color: var(--primary);
-      color: white;
       padding: 0.9rem;
-      margin-top: 0.6rem;
       font-size: 1rem;
+      margin-top: 0.7rem;
       border: none;
       border-radius: 8px;
-      cursor: pointer;
+      background: #007bff;
+      color: white;
+      font-weight: bold;
     }
 
-    .btn:hover {
-      background-color: #1976d2;
+    button:disabled {
+      background: #ccc;
     }
 
-    .output-box {
-      background-color: var(--card-bg);
+    .output {
+      background: white;
       padding: 1rem;
+      border-radius: 8px;
       margin-top: 1rem;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       font-size: 1rem;
-      min-height: 60px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-
-    footer {
-      text-align: center;
-      margin-top: 2rem;
-      font-size: 0.85rem;
-      color: var(--text-light);
     }
   </style>
 </head>
 <body>
-  <div class="app">
-    <header>
-      <h2>📷 OCR Camera App</h2>
-    </header>
 
+  <div class="header">📷 Text Scanner</div>
+
+  <div class="container">
     <video id="video" autoplay playsinline></video>
-    <button class="btn" onclick="capture()">📸 Capture Photo</button>
 
-    <canvas id="canvas" style="display:none;"></canvas>
-    <img id="captured" style="display:none;">
-    <button class="btn" onclick="cropImage()">✂️ Crop</button>
+    <canvas id="canvas"></canvas>
+    <img id="captured" />
 
     <canvas id="croppedCanvas" style="display:none;"></canvas>
-    <button class="btn" onclick="extractText()">🔍 Extract Text</button>
-    <button class="btn" onclick="copyText()">📋 Copy Text</button>
 
-    <div id="output" class="output-box">📝 Extracted text will appear here...</div>
+    <button onclick="startCamera()">Start Camera</button>
+    <button onclick="capture()" id="captureBtn" disabled>📸 Capture Photo</button>
+    <button onclick="cropImage()" id="cropBtn" disabled>✂️ Crop</button>
+    <button onclick="extractText()" id="extractBtn" disabled>🔍 Extract Text</button>
+    <button onclick="copyText()" id="copyBtn" disabled>📋 Copy Text</button>
 
-    <footer>Built with ❤️ using Tesseract.js & Cropper.js</footer>
+    <div id="output" class="output">📝 Your scanned text will appear here...</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/cropperjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+
   <script>
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
@@ -119,25 +93,30 @@
     const output = document.getElementById("output");
     let cropper;
 
-    // 🟢 Use rear camera
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { exact: "environment" } }
-    })
-    .then(stream => video.srcObject = stream)
-    .catch(err => {
-      alert("Rear camera not available or permission denied.");
-      console.error(err);
-    });
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } }
+      }).then(stream => {
+        video.srcObject = stream;
+        video.style.display = "block";
+        document.getElementById("captureBtn").disabled = false;
+      }).catch(err => {
+        alert("Rear camera not found or not allowed.");
+        console.error(err);
+      });
+    }
 
     function capture() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0);
-      captured.src = canvas.toDataURL("image/png");
+      const imgData = canvas.toDataURL("image/png");
+      captured.src = imgData;
       captured.style.display = "block";
       if (cropper) cropper.destroy();
       cropper = new Cropper(captured, { viewMode: 1 });
+      document.getElementById("cropBtn").disabled = false;
     }
 
     function cropImage() {
@@ -148,13 +127,19 @@
       const ctx = croppedCanvas.getContext("2d");
       ctx.drawImage(cropped, 0, 0);
       croppedCanvas.style.display = "block";
+      document.getElementById("extractBtn").disabled = false;
     }
 
     function extractText() {
-      output.textContent = "🔄 Extracting text...";
+      output.textContent = "🔍 Extracting text...";
       Tesseract.recognize(croppedCanvas, 'eng')
-        .then(result => output.textContent = result.data.text || "❌ No text found.")
-        .catch(err => output.textContent = "❌ Error: " + err.message);
+        .then(result => {
+          output.textContent = result.data.text.trim() || "❌ No text found.";
+          document.getElementById("copyBtn").disabled = false;
+        })
+        .catch(err => {
+          output.textContent = "❌ Error: " + err.message;
+        });
     }
 
     function copyText() {
@@ -164,5 +149,6 @@
       });
     }
   </script>
+
 </body>
 </html>
